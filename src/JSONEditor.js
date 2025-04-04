@@ -21,7 +21,7 @@ const JSONEditor = ({ onSelectField, selectedText }) => {
         [selectedField]: selectedText,
       }));
     }
-  }, [selectedText, selectedField]);
+  }, [selectedText]);
 
   const handleFieldClick = (key) => {
     setSelectedField(key);
