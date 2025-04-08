@@ -48,14 +48,16 @@ const PDFViewer = ({ onTextSelect }) => {
   const [selectedColor, setSelectedColor] = useState(highlightColors[0]);
   const [autoColor, setAutoColor] = useState(true);
   const [colorIndex, setColorIndex] = useState(0);
+  const [scale, setScale] = useState(1.5);
   const viewerRef = useRef();
 
+
+  // it sets the number of pages in the document
   const onDocumentLoadSuccess = ({ numPages }) => {
-    console.log("Document loaded successfully.");
-    console.log("Number of pages:", numPages);
     setNumPages(numPages);
   };
 
+  // it gets the selected text and its bounding rectangle, and creates a highlight object 
   const handleMouseUp = () => {
     const selection = window.getSelection();
     const selectedText = selection.toString().trim();
@@ -90,14 +92,17 @@ const PDFViewer = ({ onTextSelect }) => {
     selection.removeAllRanges();
   };
 
+  // it removes the last highlight from the highlights array
   const undoLastHighlight = () => {
     setHighlights((prev) => prev.slice(0, -1));
   };
 
+  // it clears all highlights from the highlights array
   const clearAllHighlights = () => {
     setHighlights([]);
   };
 
+  // it runs the auto highlight function on the spans of the PDF document
   const runAutoHighlight = (spans) => {
     const newHighlights = [];
     let autoColorIndex = 0;
@@ -109,7 +114,7 @@ const PDFViewer = ({ onTextSelect }) => {
 
     Object.values(initialData).forEach((rawValue) => {
       const cleanValue = rawValue.toString().trim();
-      const words = cleanValue.split(/\s+/); 
+      const words = cleanValue.split(/\s+/);
       const matchLength = words.length;
 
       for (let i = 0; i <= textChunks.length - matchLength; i++) {
@@ -164,6 +169,7 @@ const PDFViewer = ({ onTextSelect }) => {
     }
   };
 
+  // it sets up a MutationObserver to watch for changes in the PDF document and run the auto highlight function when the span count stabilizes
   useEffect(() => {
     if (!numPages) return;
 
@@ -187,6 +193,7 @@ const PDFViewer = ({ onTextSelect }) => {
           clearTimeout(stableTimer);
           stableTimer = setTimeout(() => {
             observer.disconnect();
+            // filteredSpansRef.current = filteredSpans;
             runAutoHighlight(filteredSpans);
           }, 500);
         } else {
@@ -205,8 +212,78 @@ const PDFViewer = ({ onTextSelect }) => {
     };
   }, [numPages]);
 
+  // it sets up event listeners for keyboard shortcuts and mouse wheel events to control zooming
+  useEffect(() => {
+    const isMac = /Mac/i.test(navigator.platform);
+
+    const handleKeyDown = (e) => {
+      const ctrlOrCmd = isMac ? e.metaKey : e.ctrlKey;
+
+      if (ctrlOrCmd && e.key === "=") {
+        e.preventDefault();
+        setScale((prev) => Math.min(prev + 0.1, 3));
+      } else if (ctrlOrCmd && e.key === "-") {
+        e.preventDefault();
+        setScale((prev) => Math.max(prev - 0.1, 0.5));
+      } else if (ctrlOrCmd && e.key === "0") {
+        e.preventDefault();
+        setScale(1.5);
+      }
+    };
+
+    const handleWheel = (e) => {
+      const ctrlOrCmd = isMac ? e.metaKey : e.ctrlKey;
+
+      if (ctrlOrCmd) {
+        e.preventDefault();
+        if (e.deltaY < 0) {
+          // scroll up → zoom in
+          setScale((prev) => Math.min(prev + 0.1, 3));
+        } else {
+          // scroll down → zoom out
+          setScale((prev) => Math.max(prev - 0.1, 0.5));
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("wheel", handleWheel);
+    };
+  }, []);
+
+  // it handles right-click events on highlights to remove them *not working
+  const handleRightClick = (e, id) => {
+    e.preventDefault(); // prevent browser context menu
+    setHighlights((prev) => prev.filter((h) => h.id !== id));
+  };
+
+  // it clears previous highlights and runs the auto highlight function when the scale changes
+  useEffect(() => {
+    if (!numPages) return;
+
+    clearAllHighlights(); // Clear previous highlights
+
+    const timeout = setTimeout(() => {
+      const spans = viewerRef.current?.querySelectorAll(
+        ".react-pdf__Page__textContent span"
+      );
+      const filteredSpans = Array.from(spans || []).filter(
+        (s) => s.textContent.trim() !== ""
+      );
+
+      // Clear previous highlights
+      runAutoHighlight(filteredSpans);
+    }, 500); // debounce delay after scale change
+
+    return () => clearTimeout(timeout);
+  }, [scale, numPages]);
+
   return (
-    <div style={{ width: "50%", position: "relative" }}>
+    <div style={{ width: "80%", position: "relative" }}>
       {/* Toolbar */}
       <div
         style={{
@@ -280,6 +357,50 @@ const PDFViewer = ({ onTextSelect }) => {
         >
           Clear All
         </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+          <button
+            onClick={() => setScale((prev) => Math.max(prev - 0.1, 0.5))}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 4,
+              backgroundColor: "#2196F3",
+              color: "#fff",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            − Zoom Out
+          </button>
+          <span style={{ minWidth: 50, textAlign: "center" }}>
+            {Math.round(scale * 100)}%
+          </span>
+          <button
+            onClick={() => setScale((prev) => Math.min(prev + 0.1, 3))}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 4,
+              backgroundColor: "#2196F3",
+              color: "#fff",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            ＋ Zoom In
+          </button>
+          <button
+            onClick={() => setScale(1.5)}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 4,
+              backgroundColor: "#FFC107",
+              color: "#000",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            Reset Zoom
+          </button>
+        </div>
       </div>
 
       {/* PDF Viewer */}
@@ -290,11 +411,18 @@ const PDFViewer = ({ onTextSelect }) => {
           position: "relative",
           height: "calc(100vh - 60px)",
           overflowY: "auto",
+          display: "flex",
+          justifyContent: "center",
         }}
       >
         <Document file={samplePDF} onLoadSuccess={onDocumentLoadSuccess}>
           {Array.from(new Array(numPages), (_, index) => (
-            <Page key={index} pageNumber={index + 1} renderTextLayer />
+            <Page
+              key={index}
+              pageNumber={index + 1}
+              renderTextLayer
+              scale={scale}
+            />
           ))}
         </Document>
 
@@ -303,6 +431,7 @@ const PDFViewer = ({ onTextSelect }) => {
           <div
             key={h.id}
             title={h.text}
+            onContextMenu={(e) => handleRightClick(e, h.id)}
             style={{
               position: "absolute",
               top: h.top,
@@ -312,6 +441,24 @@ const PDFViewer = ({ onTextSelect }) => {
               ...getHighlightStyle(h.color),
             }}
           />
+          // <div
+          //   key={h.id}
+          //   className="h"
+          //   style={{
+          //     position: "absolute",
+          //     top: h.top * scale,
+          //     left: h.left * scale,
+          //     width: h.width * scale,
+          //     height: h.height * scale,
+          //     backgroundColor: h.color,
+          //     opacity: 0.4,
+          //     border: `1px solid ${darkenColor(h.color)}`,
+          //     borderRadius: 4,
+          //     padding: 2,
+          //     boxSizing: "border-box",
+          //     transformOrigin: "top left",
+          //   }}
+          // />
         ))}
       </div>
     </div>

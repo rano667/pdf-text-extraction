@@ -24,7 +24,7 @@ const JSONEditor = ({ selectedField, setSelectedField, selectedText, updateJsonD
   };
 
   return (
-    <div style={{ width: "50%", padding: "20px", backgroundColor: "#f9f9f9" }}>
+    <div style={{ width: "20%", padding: "20px", backgroundColor: "#f9f9f9" }}>
       <h3>Extracted Data</h3>
       {Object.keys(jsonData).map((key) => (
         <p
