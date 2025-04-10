@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from "react";
 
-const JSONEditor = ({ selectedField, setSelectedField, selectedText, updateJsonData, jsonData, setJsonData }) => {
+const JSONEditor = ({
+  selectedField,
+  setSelectedField,
+  selectedText,
+  updateJsonData,
+  jsonData,
+  setJsonData,
+  fieldColors,
+  hoveredField,
+  setHoveredField,
+}) => {
   useEffect(() => {
     if (selectedField && selectedText) {
       updateJsonData(selectedField, selectedText);
@@ -26,20 +36,39 @@ const JSONEditor = ({ selectedField, setSelectedField, selectedText, updateJsonD
   return (
     <div style={{ width: "20%", padding: "20px", backgroundColor: "#f9f9f9" }}>
       <h3>Extracted Data</h3>
-      {Object.keys(jsonData).map((key) => (
-        <p
+      {Object.entries(jsonData).map(([key, value]) => (
+        <div
           key={key}
           onClick={() => handleFieldClick(key)}
+          onMouseEnter={() => setHoveredField(key)}
+          onMouseLeave={() => setHoveredField(null)}
           style={{
+            marginBottom: 8,
+            padding: 6,
+            borderRadius: 4,
+            backgroundColor:
+              selectedField === key
+                ? "#e0f7fa"
+                : hoveredField === key
+                ? "#f1f1f1"
+                : "transparent",
+            borderLeft: `6px solid ${fieldColors[key] || "#ccc"}`,
             cursor: "pointer",
-            color: selectedField === key ? "blue" : "black",
-            backgroundColor: selectedField === key ? "#e0f7fa" : "transparent",
-            padding: "5px",
-            borderRadius: "4px",
           }}
         >
-          <strong>{key}:</strong> {jsonData[key]}
-        </p>
+          <strong>{key}: </strong>
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => updateJsonData(key, e.target.value)}
+            style={{
+              width: "90%",
+              border: "none",
+              background: "transparent",
+              fontSize: "14px",
+            }}
+          />
+        </div>
       ))}
 
       <button
@@ -52,7 +81,9 @@ const JSONEditor = ({ selectedField, setSelectedField, selectedText, updateJsonD
           borderRadius: "4px",
           cursor: "pointer",
         }}
-        onClick={() => localStorage.setItem("jsonData", JSON.stringify(jsonData))}
+        onClick={() =>
+          localStorage.setItem("jsonData", JSON.stringify(jsonData))
+        }
       >
         Save Data
       </button>

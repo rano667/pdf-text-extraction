@@ -21,28 +21,53 @@ const highlightColors = [
 ];
 
 // Initial JSON data to auto-highlight
-const initialData = {
-  "Invoice Date": "08-16-2022",
-  "Creditor Name": "SFL PVT LTD",
-  "Invoice Total": "$8978.72",
-  "Invoice Number": "77106787",
-  "Shipment Number": "12150980",
-  "Invoice Currency": "$",
-};
+// const initialData = {
+//   "Invoice Date": "08-16-2022",
+//   "Creditor Name": "SFL PVT LTD",
+//   "Invoice Total": "$8978.72",
+//   "Invoice Number": "77106787",
+//   "Shipment Number": "12150980",
+//   "Invoice Currency": "$",
+// };
 
-const getHighlightStyle = (color) => {
+const pulseKeyframes = `
+  @keyframes pulseGlow {
+    0% { box-shadow: 0 0 0px 0px transparent; }
+    50% { box-shadow: 0 0 6px 2px var(--pulseColor); }
+    100% { box-shadow: 0 0 0px 0px transparent; }
+  }
+`;
+
+const getHighlightStyle = (color, isHovered = false) => {
   const borderColor = color.replace(/66$/, "CC");
+  const baseGlow = color.replace(/66$/, "FF");
+
   return {
     backgroundColor: color,
-    border: `1px solid ${borderColor}`,
-    borderRadius: 2,
-    padding: "2px",
-    pointerEvents: "none",
+    border: `2px solid ${isHovered ? baseGlow : borderColor}`,
+    borderRadius: 4,
+    pointerEvents: "auto",
     boxSizing: "border-box",
+    transition: "transform 0.2s ease, box-shadow 0.2s ease, border 0.2s ease",
+    // boxShadow: isHovered ? `0 0 12px 6px ${baseGlow}` : "none",
+    transform: isHovered ? "scale(1.4)" : "scale(1.2)",
+    transformOrigin: "center center",
+    animation: isHovered
+      ? "pulseGlow 1.5s ease-in-out infinite, scaleGrow 1.5s ease-in-out infinite"
+      : "none",
+    zIndex: 9999,
   };
 };
 
-const PDFViewer = ({ onTextSelect }) => {
+const PDFViewer = ({
+  selectedField,
+  setSelectedField,
+  onTextSelect,
+  initialData,
+  fieldColors,
+  hoveredField,
+  setHoveredField,
+}) => {
   const [numPages, setNumPages] = useState(null);
   const [highlights, setHighlights] = useState([]);
   const [selectedColor, setSelectedColor] = useState(highlightColors[0]);
@@ -51,28 +76,40 @@ const PDFViewer = ({ onTextSelect }) => {
   const [scale, setScale] = useState(1.5);
   const viewerRef = useRef();
 
+  // Inject only once
+  useEffect(() => {
+    const styleTag = document.createElement("style");
+    styleTag.innerHTML = pulseKeyframes;
+    document.head.appendChild(styleTag);
+    return () => document.head.removeChild(styleTag);
+  }, []);
 
   // it sets the number of pages in the document
   const onDocumentLoadSuccess = ({ numPages }) => {
     setNumPages(numPages);
   };
 
-  // it gets the selected text and its bounding rectangle, and creates a highlight object 
+  // it gets the selected text and its bounding rectangle, and creates a highlight object
   const handleMouseUp = () => {
     const selection = window.getSelection();
     const selectedText = selection.toString().trim();
-    if (!selectedText) return;
+    if (!selectedText || !selectedField) return;
 
     const range = selection.getRangeAt(0);
     const rect = range.getBoundingClientRect();
     const containerRect = viewerRef.current.getBoundingClientRect();
 
-    const top = rect.top - containerRect.top + viewerRef.current.scrollTop;
+    const paddingY = 2;
+
+    const top =
+      rect.top - containerRect.top + viewerRef.current.scrollTop - paddingY;
     const left = rect.left - containerRect.left + viewerRef.current.scrollLeft;
 
-    const color = autoColor
-      ? highlightColors[colorIndex % highlightColors.length]
-      : selectedColor;
+    const color =
+      fieldColors?.[selectedField] ||
+      (autoColor
+        ? highlightColors[colorIndex % highlightColors.length]
+        : selectedColor);
 
     if (autoColor) setColorIndex((i) => (i + 1) % highlightColors.length);
 
@@ -81,10 +118,11 @@ const PDFViewer = ({ onTextSelect }) => {
       top,
       left,
       width: rect.width,
-      height: rect.height,
+      height: rect.height + paddingY,
       text: selectedText,
       color,
       auto: false,
+      field: selectedField,
     };
 
     setHighlights((prev) => [...prev, newHighlight]);
@@ -105,14 +143,11 @@ const PDFViewer = ({ onTextSelect }) => {
   // it runs the auto highlight function on the spans of the PDF document
   const runAutoHighlight = (spans) => {
     const newHighlights = [];
-    let autoColorIndex = 0;
 
     const spanList = Array.from(spans);
     const textChunks = spanList.map((span) => span.textContent.trim());
 
-    console.log("textChunks:", textChunks);
-
-    Object.values(initialData).forEach((rawValue) => {
+    Object.entries(initialData).forEach(([field, rawValue]) => {
       const cleanValue = rawValue.toString().trim();
       const words = cleanValue.split(/\s+/);
       const matchLength = words.length;
@@ -125,10 +160,13 @@ const PDFViewer = ({ onTextSelect }) => {
           const rects = matchedSpans.map((s) => s.getBoundingClientRect());
           const containerRect = viewerRef.current.getBoundingClientRect();
 
+          const paddingY = 2;
+
           const top =
             Math.min(...rects.map((r) => r.top)) -
             containerRect.top +
-            viewerRef.current.scrollTop;
+            viewerRef.current.scrollTop -
+            paddingY;
           const left =
             Math.min(...rects.map((r) => r.left)) -
             containerRect.left +
@@ -140,14 +178,15 @@ const PDFViewer = ({ onTextSelect }) => {
           const bottom =
             Math.max(...rects.map((r) => r.bottom)) -
             containerRect.top +
-            viewerRef.current.scrollTop;
+            viewerRef.current.scrollTop +
+            paddingY;
 
           const width = right - left;
           const height = bottom - top;
 
           const color =
-            highlightColors[autoColorIndex % highlightColors.length];
-          autoColorIndex++;
+            fieldColors?.[field] ||
+            highlightColors[newHighlights.length % highlightColors.length];
 
           newHighlights.push({
             id: uuidv4(),
@@ -158,6 +197,7 @@ const PDFViewer = ({ onTextSelect }) => {
             text: cleanValue,
             color,
             auto: true,
+            field,
           });
           break;
         }
@@ -430,15 +470,17 @@ const PDFViewer = ({ onTextSelect }) => {
         {highlights.map((h) => (
           <div
             key={h.id}
-            title={h.text}
+            title={h.field || h.text}
             onContextMenu={(e) => handleRightClick(e, h.id)}
+            onMouseEnter={() => console.log("Hovered:", h.field || h.text)}
             style={{
+              "--pulseColor": h.color.replace(/66$/, "FF"),
               position: "absolute",
               top: h.top,
               left: h.left,
               width: h.width,
               height: h.height,
-              ...getHighlightStyle(h.color),
+              ...getHighlightStyle(h.color, hoveredField === h.field),
             }}
           />
           // <div

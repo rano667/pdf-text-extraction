@@ -2,8 +2,18 @@ import React, { useState, useEffect } from "react";
 import PDFViewer from "./PDFViewer";
 import JSONEditor from "./JSONEditor";
 
+const fieldColors = {
+  "Invoice Date": "#FFEB3B66",
+  "Creditor Name": "#81C78466",
+  "Invoice Total": "#64B5F666",
+  "Invoice Number": "#E5737366",
+  "Shipment Number": "#FF980066",
+  "Invoice Currency": "#BA68C866",
+};
+
 const App = () => {
   const [selectedField, setSelectedField] = useState(null);
+  const [hoveredField, setHoveredField] = useState(null);
   const [selectedText, setSelectedText] = useState("");
   const [jsonData, setJsonData] = useState(() => {
     return (
@@ -34,7 +44,15 @@ const App = () => {
 
   return (
     <div style={{ display: "flex", height: "100vh" }}>
-      <PDFViewer onTextSelect={handleTextSelect} />
+      <PDFViewer
+        selectedField={selectedField}
+        setSelectedField={setSelectedField}
+        onTextSelect={handleTextSelect}
+        fieldColors={fieldColors}
+        initialData={jsonData}
+        hoveredField={hoveredField}
+        setHoveredField={setHoveredField}
+      />
       <JSONEditor
         selectedField={selectedField}
         setSelectedField={setSelectedField}
@@ -42,6 +60,9 @@ const App = () => {
         updateJsonData={updateJsonData}
         jsonData={jsonData}
         setJsonData={setJsonData}
+        fieldColors={fieldColors}
+        hoveredField={hoveredField}
+        setHoveredField={setHoveredField}
       />
     </div>
   );
