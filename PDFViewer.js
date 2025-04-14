@@ -205,7 +205,10 @@ const PDFViewer = ({
     });
 
     if (newHighlights.length > 0) {
-      setHighlights((prev) => [...prev, ...newHighlights]);
+      setHighlights((prev) => [
+        ...prev.filter((h) => !h.auto),
+        ...newHighlights,
+      ]);
     }
   };
 
@@ -321,6 +324,57 @@ const PDFViewer = ({
 
     return () => clearTimeout(timeout);
   }, [scale, numPages]);
+
+  // Scroll to the selected field if it's not visible
+  useEffect(() => {
+    if (!selectedField || highlights.length === 0) return;
+
+    const container = viewerRef.current;
+    if (!container) return;
+
+    // Find the first highlight matching the selected field
+    const target = container.querySelector(`[data-field="${selectedField}"]`);
+    if (!target) return;
+
+    const highlightRect = target.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    const isVisible =
+      highlightRect.top >= containerRect.top &&
+      highlightRect.bottom <= containerRect.bottom;
+
+    if (!isVisible) {
+      container.scrollTo({
+        top: target.offsetTop - 60, // scroll to the field with offset padding
+        behavior: "smooth",
+      });
+    }
+  }, [selectedField, highlights]);
+
+  useEffect(() => {
+    if (!hoveredField || highlights.length === 0) return;
+  
+    const container = viewerRef.current;
+    if (!container) return;
+  
+    const target = container.querySelector(`[data-field="${hoveredField}"]`);
+    if (!target) return;
+  
+    const highlightRect = target.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+  
+    const isVisible =
+      highlightRect.top >= containerRect.top &&
+      highlightRect.bottom <= containerRect.bottom;
+  
+    if (!isVisible) {
+      container.scrollTo({
+        top: target.offsetTop - 60,
+        behavior: "smooth",
+      });
+    }
+  }, [hoveredField, highlights]);
+  
 
   return (
     <div style={{ width: "80%", position: "relative" }}>
@@ -470,6 +524,8 @@ const PDFViewer = ({
         {highlights.map((h) => (
           <div
             key={h.id}
+            data-id={h.id}
+            data-field={h.field} // 🏷️ used for scroll targeting
             title={h.field || h.text}
             onContextMenu={(e) => handleRightClick(e, h.id)}
             onMouseEnter={() => console.log("Hovered:", h.field || h.text)}
